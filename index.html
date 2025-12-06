@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amenity Finder — Mobile GIS (ค้นหาสถานที่อำนวยความสะดวก)</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="image/Favicon/favicon-32x32.png">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    
+    <!-- W3.CSS -->
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    
+    <!-- Style for the layout and map -->
+    <style>
+        /* Ensure full height and width */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Full height layout for the app */
+        #main {
+            display: flex;
+            flex-wrap: wrap;
+            height: calc(100% - 134px); /* Subtract header and footer height */
+            width: 100%; /* Ensure main takes up 100% width */
+        }
+
+        /* Full width and height for form and map */
+        .form-container {
+            flex: 1;
+            min-width: 300px;
+            padding: 16px;
+        }
+
+        .map-container {
+            flex: 2;
+            min-width: 300px;
+            height: 100%;
+        }
+
+        /* Full height for map */
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        /* Adjust for smaller screens */
+        @media (max-width: 768px) {
+            #main {
+                flex-direction: column;
+            }
+        }
+        /* Style the popup table */
+        .popup-table {
+            width: 100%; 
+            min-width: 250px;/* Ensure the table fits the popup */
+            table-layout: fixed; /* Ensure fixed layout for equal distribution */
+            border-collapse: collapse;
+        }
+        .popup-table th, .popup-table td {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            word-wrap: break-word; /* Wrap content in cells */
+            word-break: break-all; /* Ensure words break if necessary */
+        }
+        .popup-table th {
+            background-color: #f2f2f2;
+        }
+        .popup-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .popup-table td:first-child {
+            font-weight: bold;
+        }
+        /* Ensure the popup has a maximum width */
+        .leaflet-popup-content {
+            max-width: 320px !important; /* Adjust based on desired popup width */
+            overflow-wrap: break-word; /* Ensure long content breaks */
+            word-wrap: break-word; /* Break long words */
+            max-height: 200px; /* Set a maximum height */
+            overflow-y: auto; /* Enable vertical scrolling */
+        }
+        .leaflet-popup-content-wrapper {
+            white-space: normal; /* Make sure content wraps */
+        }
+        /* For WebKit browsers (Chrome, Safari, Edge) */
+        .leaflet-popup-content-wrapper::-webkit-scrollbar {
+            width: 3px; /* Thin scrollbar width */
+        }
+        .leaflet-popup-content-wrapper::-webkit-scrollbar-track {
+            background: #f1f1f1; /* Grey background for the scrollbar track */
+        }
+        .leaflet-popup-content-wrapper::-webkit-scrollbar-thumb {
+            background-color: #888; /* Darker grey for the scrollbar thumb */
+            border-radius: 10px; /* Rounded scrollbar thumb */
+        }
+        /* For Firefox */
+        .leaflet-popup-content-wrapper {
+            scrollbar-width: thin; /* Thin scrollbar */
+            scrollbar-color: #888888 #f1f1f1; /* Thumb color #888, track color #f1f1f1 */
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="w3-container w3-orange w3-center w3-padding-16">
+        <h1>Gas stations and facilities in Phuket</h1>
+        <p>สถานีบริการน้ำมันและสิ่งอำนวยความสะดวกในจังหวัดภูเก็ต</p>
+    </header>
+
+    <!-- Main section with form on the left and map on the right -->
+    <div id="main" class="w3-container">
+        <div class="form-container w3-card w3-padding">
+            <h2>Filter Amenities</h2>
+            <form id="filterForm" class="w3-container">
+                <label for="lat">Center Latitude:</label>
+                <input class="w3-input w3-border" type="number" id="lat" name="lat" value="7.8928" step="0.0001" required>
+                
+                <label for="lon">Center Longitude:</label>
+                <input class="w3-input w3-border" type="number" id="lon" name="lon" value="98.3520" step="0.0001" required>
+
+                <!-- Get Current Location Button -->
+                <button type="button" class="w3-button w3-green w3-margin-top" id="getLocationBtn">
+                    Get Current Location
+                </button>
+                <br/>
+                <label for="radius">Radius (km):</label>
+                <input class="w3-input w3-border" type="number" id="radius" name="radius" value="23" step="0.1" required>
+                
+                <!-- Amenity Dropdown -->
+                <label for="amenity">Amenity Type:</label>
+                <select class="w3-input w3-border" id="amenity" name="amenity" required>
+                    <!-- เขียนตามใน Key amenity ของ OSM -->
+                    <option value="fuel">Gas Station (ปั้มนํ้ามัน)</option>
+                    <option value="hospital">Hospital (โรงพยาบาล)</option>
+                    <option value="parking">Parking (โรงจอดรถ)</option>
+                    <option value="toilets">Toilets (ห้องนํ้าสาธารณะ)</option>
+                    <option value="cafe">Cafe (คาเฟ่)</option>
+                    <option value="restaurant">Restaurant (ร้านอาหาร)</option>
+                    <option value="marketplace">Marketplace (ตลาด)</option>
+                    <option value="pharmacy">Pharmacy (ร้านขายยา)</option>
+                    <option value="bank">Bank (ธนาคาร)</option>
+                    <option value="charging_station">Charging station (จุดชาร์จรถไฟฟ้า)</option>
+                </select>
+                <button class="w3-button w3-blue w3-margin-top" type="submit">Apply Filter</button>
+            </form>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+  <footer class="w3-container w3-orange w3-center w3-padding-16">
+    <p>&copy; 2025 Amenity Finder. All rights reserved.</p>
+    <p style="font-size:0.85em; margin-top:6px;">
+        Map Data & Tiles: <a href="https://www.openstreetmap.org/copyright" target="_blank" style="color: inherit; text-decoration: underline;">© OpenStreetMap contributors</a> 
+        · Map:<a href="https://leafletjs.com/" target="_blank" style="color: inherit; text-decoration: underline;"> Leaflet</a> 
+        · CSS:<a href="https://www.w3schools.com/w3css/" target="_blank" style="color: inherit; text-decoration: underline;"> W3.CSS</a>   
+        · Icons:<a href="https://streamlinehq.com/" target="_blank" style="color: inherit; text-decoration: underline;"> Streamline</a>
+    </p>
+</footer>
+
+    <script>
+        // Initialize the map
+        var map = L.map('map').setView([7.8928, 98.3520], 13);
+     // Define a custom icon ตัวcenter
+     const  markerIcon = L.icon({
+            iconUrl: 'image/mappings/marker.png', // Set the path to your 512x512 icon image
+            iconSize: [42, 42], // Size of the icon
+            iconAnchor: [21, 42], // Anchor point of the icon (centered horizontally and bottom-aligned)
+            popupAnchor: [0, -42] // Point from which the popup should open relative to the iconAnchor
+});
+   // Define a custom icon ตัว markerทั้งหมด เก่า
+    const  cloudIcon = L.icon({
+            iconUrl: 'image/mappings/cloudmarker.png', // Set the path to your 512x512 icon image
+            iconSize: [42, 42], // Size of the icon
+            iconAnchor: [21, 42], // Anchor point of the icon (centered horizontally and bottom-aligned)
+            popupAnchor: [0, -42] // Point from which the popup should open relative to the iconAnchor
+});
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+        }).addTo(map);
+     
+        // Marker for the center of the map
+        var centerMarker = L.marker([7.8928, 98.3520], { draggable: false , icon:markerIcon})
+            .bindPopup('Center')
+            .addTo(map)
+            .openPopup();  // Open the popup when marker is added
+
+        // Function to fetch and display data สร้างข้อมูลใหม่
+        async function fetchData(lat, lon, radius, amenity) {
+            const url = `https://overpass-api.de/api/interpreter?data=[out:json];node[amenity=${amenity}](around:${radius * 1000},${lat},${lon});out;`;
+
+            const response = await fetch(url);
+            const data = await response.json();
+            const elements = data.elements;
+
+            // Clear existing markers (except center marker)
+            map.eachLayer(function (layer) {
+                if (layer instanceof L.Marker && layer !== centerMarker) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            // Update center marker
+            centerMarker.setLatLng([lat, lon])
+                .bindPopup(`Center: [${lat}, ${lon}]`)
+                .openPopup();  // Automatically open the popup
+
+            map.setView([lat, lon], 13);
+            // ตั้งค่าเส้นทางไอคอนตามประเภท amenity
+            // โปรดวางไฟล์ไอคอนที่ image/mappings/ เช่น:
+            // hospital.png, parking.png, phone.png, cafe.png, restaurant.png, supermarket.png, pharmacy.png, bank.png
+            var pathIcon = 'image/mappings/marker2.png'; // Default / fallback icon
+            switch (amenity) {
+                case 'hospital':
+                    pathIcon = 'image/mappings/hospital.png';
+                    break;
+                case 'parking':
+                    pathIcon = 'image/mappings/parking.png';
+                    break;
+                case 'toilets':
+                    pathIcon = 'image/mappings/Toilet-Sign-2--Streamline-Ultimate.png';
+                    break;
+                case 'cafe':
+                    pathIcon = 'image/mappings/cafe.png';
+                    break;
+                case 'restaurant':
+                    pathIcon = 'image/mappings/restaurant.png';
+                    break;
+                case 'marketplace':
+                    pathIcon = 'image/mappings/FarmerS-Market-Kiosk--Streamline-Ultimate.png';
+                    break;
+                case 'pharmacy':
+                    pathIcon = 'image/mappings/pharmacy.png';
+                    break;
+                case 'bank':
+                    pathIcon = 'image/mappings/bank.png';
+                    break;
+                case 'fuel':
+                    pathIcon = 'image/mappings/Gas-Load--Streamline-Ultimate.png';
+                    break;  
+                case 'charging_station':
+                    pathIcon = 'image/mappings/Camping-Rv--Streamline-Ultimate.png';
+                    break; 
+                // เพิ่มกรณีอื่น ๆ ตามต้องการ
+                default:
+                    pathIcon = 'image/mappings/marker2.png';
+            }
+ 
+
+
+           // Define a custom icon เปลี่ยนใหม่เป็นของเรา
+        const  amenityIcon = L.icon({
+            iconUrl: pathIcon, // Set the path to your 512x512 icon image
+            iconSize: [42, 42], // Size of the icon
+            iconAnchor: [21, 42], // Anchor point of the icon (centered horizontally and bottom-aligned)
+            popupAnchor: [0, -42] // Point from which the popup should open relative to the iconAnchor
+});
+
+            // Add markers to the map for amenities  สร้างmarker
+            elements.forEach(function (element) {
+                if (element.lat && element.lon) {
+                    L.marker([element.lat, element.lon], { icon: amenityIcon})
+                        //.bindPopup(`<b>Amenity:</b> ${amenity}<br><b>Name:</b> ${element.tags.name || 'Unknown'}`)
+                        .bindPopup(createTableFromJSON(element.tags))
+                        .addTo(map);
+                }
+            });
+        }
+
+        // Initial fetch
+        fetchData(7.8928, 98.3520, 1, 'hospital');
+
+        // Handle form submission
+        document.getElementById('filterForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            // Get values from the form
+            const lat = document.getElementById('lat').value;
+            const lon = document.getElementById('lon').value;
+            const radius = document.getElementById('radius').value;
+            const amenity = document.getElementById('amenity').value;
+
+            // Fetch and display data
+            fetchData(lat, lon, radius, amenity);
+        });
+
+        // Get user location and update form fields
+        document.getElementById('getLocationBtn').addEventListener('click', function () {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function (position) {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+
+                    // Fill the form with the user's location
+                    document.getElementById('lat').value = lat;
+                    document.getElementById('lon').value = lon;
+
+                    // Optionally, update the map view with the new location
+                    map.setView([lat, lon], 13);
+                    centerMarker.setLatLng([lat, lon])
+                        .bindPopup(`Center: [${lat}, ${lon}]`)
+                        .openPopup();  // Open popup on location marker
+                }, function (error) {
+                    alert("Error getting location: " + error.message);
+                });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        });
+        // Function to convert text to sentence case with capitalization of each word
+        function toSentenceCase(str) {
+            return str.replace(/_/g, ' ')  // Replace underscores with spaces
+                    .replace(/(?:^|\s)\S/g, function (match) {
+                        return match.toUpperCase(); // Capitalize the first letter of each word
+                    });
+        }
+        // Function to create a dynamic HTML table from JSON สร้างtable
+        function createTableFromJSON(jsonData) { 
+            let table = '<table class="popup-table">';
+            //table += '<thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody>';
+            for (let key in jsonData) {
+                if (jsonData.hasOwnProperty(key)) {
+                    table += '<tr>';
+                    //table += `<td>${key.replace(":", " ")}</td>`; // Replace ':' with space for better readability
+                    let sentenceCaseKey = toSentenceCase(key.replace(":", " ")); 
+                    table += `<td>${sentenceCaseKey}</td>`; //ใส่ชื่อของkey 
+                    table += `<td>${jsonData[key]}</td>`; //ใส่ข้อมูลของdata 
+                    table += '</tr>';
+                }
+            }
+            table += '</tbody></table>';
+            return table;
+        }
+    </script>
+
+</body>
+</html>
